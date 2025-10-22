@@ -12,7 +12,7 @@ class Config(BaseSettings):
     
     model_config = SettingsConfigDict(
         case_sensitive=False,
-        env_file=Path(__file__).resolve().parent / ".env",  # Adjusted to same directory
+        env_file=Path(__file__).resolve().parent.parent / ".env",
         env_file_encoding="utf-8",
     )
 

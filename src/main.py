@@ -1,10 +1,13 @@
-from typing import Optional
 from contextlib import asynccontextmanager
-from stage1.db import drop_db, get_session, init_db
-from stage1.error import NotFoundError, register_error_handler
+from typing import Optional
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from stage1.schema import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.db import drop_db, get_session, init_db
+from src.error import NotFoundError, register_error_handler
+from src.schema import (
     CreateResponse,
     FilteredString,
     FiltersApplied,
@@ -12,8 +15,7 @@ from stage1.schema import (
     StringInput,
     SuccessResponse,
 )
-from stage1.service import StringCRUD
-from sqlalchemy.ext.asyncio import AsyncSession
+from src.service import StringCRUD
 
 
 def get_string_service(db: AsyncSession = Depends(get_session)):
@@ -31,9 +33,9 @@ async def life_span(app: FastAPI):
     except Exception as e:
         print(f"Error during database initialization: {str(e)}")
         raise
-    
+
     yield  # Application is running
-    
+
     # Shutdown
     print("server is ending.....")
 
@@ -124,9 +126,7 @@ async def query_strings(
     )
 
     return FilteredString(
-        data=response_data, 
-        count=len(response_data), 
-        filters_applied=filters_applied
+        data=response_data, count=len(response_data), filters_applied=filters_applied
     ).model_dump()
 
 

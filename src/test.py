@@ -3,8 +3,8 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
-from stage1.db import Base, get_session
-from stage1.main import app
+from src.db import Base, get_session
+from src.main import app
 
 # Setup test database
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"

@@ -1,10 +1,11 @@
 import hashlib
 
-from stage1.db import Strings
-from stage1.error import AlreadyExist, NotFoundError
-from stage1.log import setup_logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.db import Strings
+from src.error import AlreadyExist, NotFoundError
+from src.log import setup_logger
 
 # Set up logger
 logger = setup_logger(__name__, "service.log")
