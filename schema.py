@@ -29,11 +29,11 @@ class SuccessResponse(BaseModel): #200 ok: Get Specific String
     created_at: datetime
     
 class FiltersApplied(BaseModel):
-    is_palindrome: bool
-    min_length: int
-    max_length: int
-    word_count: int
-    contains_character: str
+    is_palindrome: Optional[bool] = None
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    word_count: Optional[int] = None
+    contains_character: Optional[str] = None
 
 class FilteredString(BaseModel): #Get All Strings with Filtering
     data: list[SuccessResponse]
