@@ -40,7 +40,7 @@ def register_error_handler(app: FastAPI):
         exception_logger.error(f"Pydantic validation error: {str(exc)}")
         return JSONResponse(
             content={"detail": "Validation error", "errors": exc.errors()},  # Changed
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
 
     @app.exception_handler(RequestValidationError)

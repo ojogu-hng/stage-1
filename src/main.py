@@ -56,7 +56,7 @@ app.add_middleware(
 )
 
 
-@app.post("/strings")
+@app.post("/strings", status_code=201)
 async def create_analyze_string(
     string_input: StringInput, string_crud: StringCRUD = Depends(get_string_service)
 ):

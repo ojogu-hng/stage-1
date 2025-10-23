@@ -16,6 +16,7 @@ class NaturalLanguageParser:
     def parse_query(self, query: str) -> ParsedFilters:
         parsed_filters = ParsedFilters()
         query_lower = query.lower()
+        logger.info(f"Parsing query_lower: '{query_lower}'") # DEBUG
 
         if "palindrome" in query_lower:
             parsed_filters.is_palindrome = True
@@ -43,15 +44,20 @@ class NaturalLanguageParser:
                 logger.warning(f"Could not parse max_length from query: {query}")
 
         # Basic contains character parsing (e.g., "contains 'a'")
+        logger.info(f'Checking for "contains \'" in {query_lower!r}: {"contains \'" in query_lower}')
+
         if "contains '" in query_lower:
             try:
                 start_index = query_lower.find("contains '") + len("contains '")
                 end_index = query_lower.find("'", start_index)
                 if start_index != -1 and end_index != -1:
                     parsed_filters.contains_character = query_lower[start_index:end_index]
+                    logger.info(f"Parsed contains_character (with quotes): {parsed_filters.contains_character}") # DEBUG
             except (ValueError, IndexError):
-                logger.warning(f"Could not parse contains_character from query: {query}")
+                logger.warning(f"Could not parse contains_character from query (with quotes): {query}")
+        # Removed the 'elif "contains" in query_lower:' block for now to simplify debugging.
 
+        logger.info(f"Final Parsed filters before return: {parsed_filters.model_dump_json()}") # DEBUG
         return parsed_filters
 
 
