@@ -14,6 +14,7 @@ from src.schema import (
     Properties,
     StringInput,
     SuccessResponse,
+    NLPFiltering, # Added for natural language filtering response
 )
 from src.service import StringCRUD
 
@@ -26,8 +27,8 @@ def get_string_service(db: AsyncSession = Depends(get_session)):
 async def life_span(app: FastAPI):
     # Startup
     try:
-        await drop_db()
-        print("tables dropped")
+        # await drop_db()
+        # print("tables dropped")
         await init_db()
         print("tables created")
     except Exception as e:
@@ -79,6 +80,42 @@ async def create_analyze_string(
     return response.model_dump()
 
 
+@app.get("/strings/filter-by-natural-language", response_model=NLPFiltering)
+async def filter_strings_by_query(
+    query: str, string_crud: StringCRUD = Depends(get_string_service)
+):
+    return await string_crud.filter_strings_by_natural_language(query=query)
+
+
+
+@app.get("/strings/{string_value}")
+# Get Specific String
+async def get_string(
+    string_value: str,
+    string_crud: StringCRUD = Depends(get_string_service),
+):
+    string = await string_crud.fetch_one_string(
+        string_value=string_value,
+    )
+    properties = Properties(
+        length=string.length,
+        is_palindrome=string.is_palindrome,
+        unique_characters=string.unique_characters,
+        word_count=string.word_count,
+        sha256_hash=string.sha256_hash,
+        character_frequency_map=string.character_frequency_map,
+    )
+    response = CreateResponse(
+        id=string.sha256_hash,
+        value=string.value,
+        properties=properties,
+        created_at=string.created_at,
+    ) 
+    return response.model_dump()
+
+
+
+
 # IMPORTANT: /strings route MUST come BEFORE /strings/{string_value}
 @app.get("/strings")
 # Get All Strings with Filtering
@@ -90,7 +127,7 @@ async def query_strings(
     contains_character: Optional[str] = None,
     string_crud: StringCRUD = Depends(get_string_service),
 ):
-    strings = await string_crud.fetch_all_strings(
+    strings = await string_crud.fetch_all_strings_with_filtering(
         is_palindrome=is_palindrome,
         min_length=min_length,
         max_length=max_length,
@@ -130,50 +167,8 @@ async def query_strings(
     ).model_dump()
 
 
-@app.get("/strings/filter-by-natural-language")
-async def filter_strings_by_query(
-    query: str, string_crud: StringCRUD = Depends(get_string_service)
-):
-    return {"query": query}
 
 
-@app.get("/strings/{string_value}")
-# Get Specific String
-async def get_string(
-    string_value: str,
-    is_palindrome: Optional[bool] = None,
-    min_length: Optional[int] = None,
-    max_length: Optional[int] = None,
-    word_count: Optional[int] = None,
-    contains_character: Optional[str] = None,
-    string_crud: StringCRUD = Depends(get_string_service),
-):
-    try:
-        string = await string_crud.fetch_one_string(
-            string_value=string_value,
-            is_palindrome=is_palindrome,
-            min_length=min_length,
-            max_length=max_length,
-            word_count=word_count,
-            contains_character=contains_character,
-        )
-        properties = Properties(
-            length=string.length,
-            is_palindrome=string.is_palindrome,
-            unique_characters=string.unique_characters,
-            word_count=string.word_count,
-            sha256_hash=string.sha256_hash,
-            character_frequency_map=string.character_frequency_map,
-        )
-        response = CreateResponse(
-            id=string.sha256_hash,
-            value=string.value,
-            properties=properties,
-            created_at=string.created_at,
-        )
-        return response.model_dump()
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.delete("/strings/{string_value}")

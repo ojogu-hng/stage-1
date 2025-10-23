@@ -6,9 +6,53 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db import Strings
 from src.error import AlreadyExist, NotFoundError
 from src.log import setup_logger
+from src.schema import ParsedFilters, InterpretedQuery, NLPFiltering, SuccessResponse
 
 # Set up logger
 logger = setup_logger(__name__, "service.log")
+
+
+class NaturalLanguageParser:
+    def parse_query(self, query: str) -> ParsedFilters:
+        parsed_filters = ParsedFilters()
+        query_lower = query.lower()
+
+        if "palindrome" in query_lower:
+            parsed_filters.is_palindrome = True
+        if "not palindrome" in query_lower or "non-palindrome" in query_lower:
+            parsed_filters.is_palindrome = False
+
+        if "single word" in query_lower:
+            parsed_filters.word_count = 1
+        
+        # Basic length parsing (e.g., "length greater than 5")
+        if "length greater than" in query_lower:
+            try:
+                parts = query_lower.split("length greater than")
+                min_length_str = parts[1].strip().split(" ")[0]
+                parsed_filters.min_length = int(min_length_str)
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse min_length from query: {query}")
+        
+        if "length less than" in query_lower:
+            try:
+                parts = query_lower.split("length less than")
+                max_length_str = parts[1].strip().split(" ")[0]
+                parsed_filters.max_length = int(max_length_str)
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse max_length from query: {query}")
+
+        # Basic contains character parsing (e.g., "contains 'a'")
+        if "contains '" in query_lower:
+            try:
+                start_index = query_lower.find("contains '") + len("contains '")
+                end_index = query_lower.find("'", start_index)
+                if start_index != -1 and end_index != -1:
+                    parsed_filters.contains_character = query_lower[start_index:end_index]
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse contains_character from query: {query}")
+
+        return parsed_filters
 
 
 class StringService:
@@ -70,18 +114,6 @@ class StringService:
 # Create an instance of StringService
 string_service = StringService()
 
-# Test string to use
-# test_string = "Hello World"
-# palindrome = "Madam"
-
-# # Test all methods
-# print("Testing length:", string_service.length(test_string))
-# print("Testing is_palindrome:", string_service.is_palindrome(palindrome))
-# print("Testing unique_characters:", string_service.unique_characters(test_string))
-# print("Testing word_count:", string_service.word_count(test_string))
-# print("Testing sha256_hash:", string_service.sha256_hash(test_string))
-# print("Testing character_frequency_map:", string_service.character_frequency_map(test_string))
-
 
 class StringCRUD:
     def __init__(self, db: AsyncSession):
@@ -140,27 +172,9 @@ class StringCRUD:
     async def fetch_one_string(
         self,
         string_value: str,
-        is_palindrome: bool = None,
-        min_length: int = None,
-        max_length: int = None,
-        word_count: int = None,
-        contains_character: str = None,
     ):
-        logger.info(
-            f"Fetching string '{string_value}' with filters: is_palindrome={is_palindrome}, min_length={min_length}, max_length={max_length}, word_count={word_count}, contains_character='{contains_character}'."
-        )
+        logger.info(f"Fetching string '{string_value}'.")
         stmt = select(Strings).where(Strings.value == string_value)
-
-        if is_palindrome is not None:
-            stmt = stmt.where(Strings.is_palindrome == is_palindrome)
-        if min_length is not None:
-            stmt = stmt.where(Strings.length >= min_length)
-        if max_length is not None:
-            stmt = stmt.where(Strings.length <= max_length)
-        if word_count is not None:
-            stmt = stmt.where(Strings.word_count == word_count)
-        if contains_character is not None:
-            stmt = stmt.where(Strings.value.ilike(f"%{contains_character}%"))
 
         result = await self.db.execute(stmt)
         string = result.scalars().first()
@@ -176,7 +190,8 @@ class StringCRUD:
                 f"String '{string_value}' not found or does not match criteria."
             )
 
-    async def fetch_all_strings(
+
+    async def fetch_all_strings_with_filtering(
         self,
         is_palindrome: bool = None,
         min_length: int = None,
@@ -219,3 +234,47 @@ class StringCRUD:
         await self.db.commit()
         logger.info(f"String '{string_value}' deleted successfully.")
         return {"message": f"String '{string_value}' deleted successfully."}
+
+    async def filter_strings_by_natural_language(self, query: str):
+        logger.info(f"Filtering strings by natural language query: '{query}'.")
+        parser = NaturalLanguageParser()
+        parsed_filters = parser.parse_query(query)
+
+        stmt = select(Strings)
+
+        if parsed_filters.is_palindrome is not None:
+            stmt = stmt.where(Strings.is_palindrome == parsed_filters.is_palindrome)
+        if parsed_filters.min_length is not None:
+            stmt = stmt.where(Strings.length >= parsed_filters.min_length)
+        if parsed_filters.max_length is not None:
+            stmt = stmt.where(Strings.length <= parsed_filters.max_length)
+        if parsed_filters.word_count is not None:
+            stmt = stmt.where(Strings.word_count == parsed_filters.word_count)
+        if parsed_filters.contains_character is not None:
+            stmt = stmt.where(Strings.value.ilike(f"%{parsed_filters.contains_character}%"))
+
+        result = await self.db.execute(stmt)
+        strings = result.scalars().all()
+
+        # Convert ORM objects to Pydantic models for response
+        response_data = [
+            SuccessResponse(
+                id=str(s.sha256_hash),
+                value=s.value,
+                properties={
+                    "length": s.length,
+                    "is_palindrome": s.is_palindrome,
+                    "unique_characters": s.unique_characters,
+                    "word_count": s.word_count,
+                    "sha256_hash": s.sha256_hash,
+                    "character_frequency_map": s.character_frequency_map,
+                },
+                created_at=s.created_at,
+            )
+            for s in strings
+        ]
+
+        interpreted_query = InterpretedQuery(original=query, parsed_filters=parsed_filters)
+        
+        logger.info(f"Found {len(strings)} strings matching the natural language query.")
+        return NLPFiltering(data=response_data, count=len(response_data), interpreted_query=interpreted_query)
